@@ -1,101 +1,168 @@
 const m3u8ContentTypes = ['application/vnd.apple.mpegurl', 'application/x-mpegurl', 'audio/x-mpegurl', 'audio/mpegurl', 'video/x-mpegurl'];
+const videoContentTypes = ['video/mp4', 'video/webm', 'video/ogg', 'application/mp4', 'video/x-m4v', ...m3u8ContentTypes];
 
-// Function to decode base64 headers and transform into a Headers object
+const CACHE_CONTROL_SETTINGS = {
+	MASTER: 'public, max-age=30, s-maxage=30',
+	MEDIA: 'public, max-age=300, s-maxage=300',
+	SEGMENT: 'public, max-age=86400, s-maxage=86400',
+	KEY: 'public, max-age=3600, s-maxage=3600',
+	ERROR: 'no-store',
+};
+
 function decodeHeaders(base64Headers) {
+	const headers = new Headers();
+	if (!base64Headers) return headers;
 	try {
-		const decodedString = atob(decodeURIComponent(base64Headers));
+		const decodedString = atob(base64Headers);
 		const headersObj = JSON.parse(decodedString);
-		const headers = new Headers();
-		for (const key in headersObj) {
-			if (headersObj.hasOwnProperty(key)) {
-				headers.append(key, headersObj[key]);
-			}
-		}
+
+		Object.entries(headersObj).forEach(([key, value]) => {
+			headers.append(key, value);
+		});
 		return headers;
 	} catch (error) {
 		return null;
 	}
 }
 
+function getCacheSettings(url, content) {
+	if (url.includes('.ts') || url.includes('.m4s')) {
+		return CACHE_CONTROL_SETTINGS.SEGMENT;
+	}
+	if (url.includes('.m3u8')) {
+		return content.includes('#EXT-X-STREAM-INF') ? CACHE_CONTROL_SETTINGS.MASTER : CACHE_CONTROL_SETTINGS.MEDIA;
+	}
+	if (url.includes('.key')) {
+		return CACHE_CONTROL_SETTINGS.KEY;
+	}
+	return CACHE_CONTROL_SETTINGS.ERROR;
+}
+
 async function proxy(request) {
-	const urlParams = new URL(request.url).searchParams;
-	const encodedUrl = urlParams.get('url');
-	const headersBase64 = urlParams.get('headers');
+	const cache = caches.default;
+	const url = new URL(request.url);
 
-	if (!encodedUrl || !headersBase64) {
-		return new Response('Both "url" and "headers" query parameters are required', { status: 400 });
+	if (request.method === 'OPTIONS') {
+		return new Response(null, {
+			status: 204,
+			headers: {
+				'Access-Control-Allow-Origin': '*',
+				'Access-Control-Allow-Methods': 'GET, OPTIONS',
+				'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+				'Access-Control-Max-Age': '86400',
+			},
+		});
 	}
 
-	// Decode the URL from base64
-	const m3u8Url = atob(decodeURIComponent(encodedUrl));
-
-	// Decode and transform the headers
-	const decodedHeaders = decodeHeaders(headersBase64);
-	if (!decodedHeaders) {
-		return new Response('Invalid headers format. Must be valid base64-encoded JSON.', { status: 400 });
-	}
-
-	const baseUrl = new URL(m3u8Url);
-	const basePath = `${baseUrl.protocol}//${baseUrl.host}${baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf('/') + 1)}`;
-
-	console.log(decodeHeaders);
+	const cacheKey = new Request(url.toString(), request);
 
 	try {
-		// Fetch the M3U8 file
-		const response = await fetch(m3u8Url, {
-			method: 'GET',
-			headers: decodedHeaders,
-		});
+		let response = await cache.match(cacheKey);
+		if (response) return response;
 
-		const contentType = response.headers.get('content-type') || 'application/octet-stream';
-		const isM3U8 = m3u8ContentTypes.some((type) => contentType.includes(type));
+		const urlParams = url.searchParams;
+		const encodedUrl = urlParams.get('url');
+		const headersBase64 = urlParams.get('headers');
 
-		if (isM3U8) {
-			let responseData = '';
-			const reader = response.body.getReader();
-			const decoder = new TextDecoder('utf-8');
-
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-				responseData += decoder.decode(value, { stream: true });
-			}
-
-			const modifiedBody = responseData.replace(/^(?!#)([^\s]+)$/gm, (match) => {
-				let fullUrl;
-				if (match.startsWith('http://') || match.startsWith('https://')) {
-					fullUrl = match;
-				} else if (match.startsWith('/')) {
-					fullUrl = `${baseUrl.protocol}//${baseUrl.host}${match}`;
-				} else {
-					fullUrl = `${basePath}${match}`;
-				}
-
-				const proxiedLink = `${new URL(request.url).origin}/proxy?url=${encodeURIComponent(btoa(fullUrl))}&headers=${encodeURIComponent(
-					headersBase64
-				)}`;
-
-				return proxiedLink;
-			});
-
-			return new Response(modifiedBody, {
+		if (!encodedUrl) {
+			return new Response('Both "url" and "headers" query parameters are required', {
+				status: 400,
 				headers: {
-					'Content-Type': 'application/vnd.apple.mpegurl',
-					'Access-Control-Allow-Origin': '*',
-				},
-			});
-		} else {
-			return new Response(response.body, {
-				headers: {
-					'Content-Type': contentType,
+					'Cache-Control': 'no-store',
 					'Access-Control-Allow-Origin': '*',
 				},
 			});
 		}
+
+		const mediaUrl = atob(decodeURIComponent(encodedUrl));
+		const decodedHeaders = decodeHeaders(headersBase64);
+
+		if (!decodedHeaders) {
+			return new Response('Invalid headers format. Must be valid base64-encoded JSON.', {
+				status: 400,
+				headers: {
+					'Cache-Control': 'no-store',
+					'Access-Control-Allow-Origin': '*',
+				},
+			});
+		}
+
+		const baseUrl = new URL(mediaUrl);
+		const basePath = `${baseUrl.protocol}//${baseUrl.host}${baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf('/') + 1)}`;
+
+		response = await fetch(mediaUrl, {
+			headers: {
+				...Object.fromEntries(decodedHeaders.entries()),
+				'Accept-Encoding': 'gzip, deflate, br',
+				Connection: 'keep-alive',
+			},
+			cf: {
+				cacheEverything: true,
+				cacheTtl: mediaUrl.includes('.m3u8') ? 300 : 86400,
+				minify: true,
+				mirage: true,
+				polish: 'lossy',
+			},
+		});
+
+		if (!response.ok) {
+			throw new Error(`HTTP error! status: ${response.status}`);
+		}
+
+		const contentType = response.headers.get('content-type') || 'application/octet-stream';
+		const isM3U8 = videoContentTypes.some((type) => contentType.includes(type));
+		const responseContent = isM3U8 ? await response.text() : null;
+		const cacheControl = isM3U8 ? getCacheSettings(mediaUrl, responseContent) : CACHE_CONTROL_SETTINGS.SEGMENT;
+
+		if (!isM3U8) {
+			const newResponse = new Response(response.body, {
+				headers: {
+					'Content-Type': contentType,
+					'Cache-Control': cacheControl,
+					'Access-Control-Allow-Origin': '*',
+					'CF-Cache-Status': 'DYNAMIC',
+					'Accept-Ranges': 'bytes',
+					'Transfer-Encoding': 'chunked',
+				},
+			});
+
+			await cache.put(cacheKey, newResponse.clone());
+			return newResponse;
+		}
+
+		const modifiedBody = responseContent.replace(/^(?!#)([^\s]+)$/gm, (match) => {
+			const fullUrl = match.startsWith('http')
+				? match
+				: match.startsWith('/')
+				? `${baseUrl.protocol}//${baseUrl.host}${match}`
+				: `${basePath}${match}`;
+
+			return `${new URL(request.url).origin}/proxy?url=${encodeURIComponent(btoa(fullUrl))}&headers=${encodeURIComponent(headersBase64)}`;
+		});
+
+		const newResponse = new Response(modifiedBody, {
+			headers: {
+				'Content-Type': 'application/vnd.apple.mpegurl',
+				'Cache-Control': cacheControl,
+				'Access-Control-Allow-Origin': '*',
+				'CF-Cache-Status': 'DYNAMIC',
+				'Accept-Ranges': 'bytes',
+				'Transfer-Encoding': 'chunked',
+			},
+		});
+
+		if (cacheControl !== CACHE_CONTROL_SETTINGS.ERROR && request.method !== 'HEAD') {
+			await cache.put(cacheKey, newResponse.clone());
+		}
+		return newResponse;
 	} catch (error) {
-		console.error('Error fetching the M3U8 file:', error.message);
-		return new Response('Error fetching the M3U8 file: ' + error.message, {
+		console.error('Error in proxy:', error);
+		return new Response(`Proxy error: ${error.message}`, {
 			status: 500,
+			headers: {
+				'Cache-Control': CACHE_CONTROL_SETTINGS.ERROR,
+				'Access-Control-Allow-Origin': '*',
+			},
 		});
 	}
 }

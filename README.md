@@ -1,4 +1,4 @@
-# HLS Stream Proxy
+### why base64Encoding? # HLS Stream Proxy
 
 This application serves as a proxy for HLS streams. It allows you to securely access and stream media content by passing through a proxy endpoint.
 
@@ -16,6 +16,10 @@ The proxy endpoint can be accessed using the following format:
 
 - **`encoded_m3u8_url`**: Base64-encoded URL of the M3U8 file you want to stream.
 - **`encoded_headers`**: Base64-encoded JSON string of any custom headers needed for the request.
+
+### Why base64Encoding?
+
+Because it looks cool
 
 ### Encoding the M3U8 URL
 
@@ -49,8 +53,6 @@ Here’s an example of how to construct a request to the proxy:
 You can deploy your own instance of this application on Cloudflare Workers by clicking the button below:
 
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Toasty360/Roxy)
-
-> Replace `YOUR_USERNAME` and `YOUR_REPOSITORY` in the URL above with your GitHub username and the repository name where your `index.js` file is located.
 
 ## Contributing
 

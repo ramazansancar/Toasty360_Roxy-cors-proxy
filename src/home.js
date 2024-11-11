@@ -1,6 +1,5 @@
-export default {
-	async home(request) {
-		const htmlContent = `<!DOCTYPE html>
+async function home() {
+	const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -148,11 +147,14 @@ export default {
             font-size: 0.9em;
             color: #aaaaaa;
         }
+            sub{
+            font-size: 8px;
+            }
     </style>
 </head>
 
 <body>
-    <h1>Valley Proxy Player</h1>
+    <h1>Valley Proxy Player<sub>Dummy</sub></h1>
     <div id="video-container">
         <h2>HLS Player</h2>
         <input type="text" id="m3u8UrlInput" placeholder="Enter M3U8 URL" />
@@ -167,7 +169,7 @@ export default {
     </div>
 
     <footer>
-        <p>&copy; 2024 Valley Proxy Player. All rights reserved.</p>
+        <p>&copy; Valley Proxy Player</p>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
@@ -179,16 +181,17 @@ export default {
         const loadVideoButton = document.getElementById('loadVideoButton');
 
         loadVideoButton.addEventListener('click', () => {
+            console.log('Load video button clicked');
             const m3u8Url = m3u8UrlInput.value;
             const headers = headersInput.value;
 
-            if (!m3u8Url || !headers) {
+            if (!m3u8Url) {
                 logMessage('Please enter both M3U8 URL and headers.');
                 return;
             }
 
             const encodedUrl = btoa(m3u8Url);
-            const encodedHeaders = btoa(headers);
+            const encodedHeaders = btoa(JSON.stringify(headers));
 
             JSON.parse(headers); // This will throw if headers is not valid JSON
             encodedHeaders = btoa(headers);
@@ -233,8 +236,9 @@ export default {
 
 </html>`;
 
-		return new Response(htmlContent, {
-			headers: { 'Content-Type': 'text/html' },
-		});
-	},
-};
+	return new Response(htmlContent, {
+		headers: { 'Content-Type': 'text/html' },
+	});
+}
+
+export default home;
