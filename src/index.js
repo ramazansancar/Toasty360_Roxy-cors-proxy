@@ -11,7 +11,6 @@
 // index.js
 
 import handleCorsRequest from './cors.js';
-import home from './home.js';
 import proxy from './proxy.js';
 
 export default {
@@ -23,7 +22,19 @@ export default {
 		} else if (url.pathname === '/cors') {
 			return handleCorsRequest(request);
 		} else if (url.pathname === '/') {
-			return home();
+			return new Response(
+				JSON.stringify({
+					message: 'Welcome to Roxy',
+					Endpoints: ['/proxy', '/cors'],
+					params: '?url=<Base64-encoded-m3u8-url>&headers=<Base64-encoded-headers>',
+				}),
+				{
+					status: 200,
+					headers: {
+						'Content-Type': 'application/json',
+					},
+				}
+			);
 		}
 
 		return new Response('Not Found', { status: 404 });

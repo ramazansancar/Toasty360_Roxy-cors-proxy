@@ -1,4 +1,4 @@
-### why base64Encoding? # HLS Stream Proxy
+# HLS Stream Proxy
 
 This application serves as a proxy for HLS streams. It allows you to securely access and stream media content by passing through a proxy endpoint.
 
