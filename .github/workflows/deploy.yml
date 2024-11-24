@@ -19,9 +19,28 @@ jobs:
       - name: Check Wrangler Version
         run: wrangler --version
 
+      - name: Verify Secrets
+        run: |
+          if [ -z "${{ secrets.CLOUDFLARE_API_TOKEN }}" ]; then
+            echo "Error: CLOUDFLARE_API_TOKEN is not set."
+            exit 1
+          fi
+          if [ -z "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" ]; then
+            echo "Error: CLOUDFLARE_ACCOUNT_ID is not set."
+            exit 1
+          fi
+
       - name: Upload Worker Version
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: versions upload
+        env:
+          DEBUG: wrangler*
+
+      - name: Handle Missing Worker
+        if: failure()
+        run: |
+          echo "Worker not found or upload failed. Creating and publishing a new Worker."
+          npx wrangler publish
