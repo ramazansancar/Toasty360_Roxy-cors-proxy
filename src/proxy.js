@@ -1,5 +1,25 @@
-const m3u8ContentTypes = ['application/vnd.apple.mpegurl', 'application/x-mpegurl', 'audio/x-mpegurl', 'audio/mpegurl', 'video/x-mpegurl'];
-const videoContentTypes = ['video/mp4', 'video/webm', 'video/ogg', 'application/mp4', 'video/x-m4v', ...m3u8ContentTypes];
+const m3u8ContentTypes = [
+	'application/vnd.apple.mpegurl', // Standard HLS playlist
+	'application/x-mpegurl', // Common alias
+	'audio/x-mpegurl', // Audio HLS playlists
+	'audio/mpegurl', // Less common
+	'video/x-mpegurl', // Video HLS playlists
+	'application/mpegurl', // Alternate generic HLS
+	'application/x-hls', // Explicit HLS content type
+	'application/x-apple-hls', // Apple-specific HLS type
+];
+
+const videoContentTypes = [
+	'video/mp4',
+	'video/webm',
+	'video/ogg',
+	'video/quicktime',
+	'video/MP2T', // Transport Stream (HLS segments)
+	'application/mp4',
+	'video/x-m4v',
+	'application/octet-stream', // Generic binary stream
+	...m3u8ContentTypes, // Include HLS playlist MIME types
+];
 
 const CACHE_CONTROL_SETTINGS = {
 	MASTER: 'public, max-age=30, s-maxage=30',
@@ -55,7 +75,6 @@ async function proxy(request) {
 	}
 
 	const cacheKey = new Request(url.toString(), request);
-
 	try {
 		let response = await cache.match(cacheKey);
 		if (response) return response;
@@ -65,7 +84,7 @@ async function proxy(request) {
 		const headersBase64 = urlParams.get('headers');
 
 		if (!encodedUrl) {
-			return new Response('Both "url" and "headers" query parameters are required', {
+			return new Response('"url" query parameters are required', {
 				status: 400,
 				headers: {
 					'Cache-Control': 'no-store',
@@ -89,7 +108,6 @@ async function proxy(request) {
 
 		const baseUrl = new URL(mediaUrl);
 		const basePath = `${baseUrl.protocol}//${baseUrl.host}${baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf('/') + 1)}`;
-
 		response = await fetch(mediaUrl, {
 			headers: {
 				...Object.fromEntries(decodedHeaders.entries()),
@@ -136,7 +154,6 @@ async function proxy(request) {
 				: match.startsWith('/')
 				? `${baseUrl.protocol}//${baseUrl.host}${match}`
 				: `${basePath}${match}`;
-
 			return `${new URL(request.url).origin}/proxy?url=${encodeURIComponent(btoa(fullUrl))}&headers=${encodeURIComponent(headersBase64)}`;
 		});
 
