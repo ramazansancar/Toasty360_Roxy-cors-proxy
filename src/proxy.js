@@ -17,7 +17,6 @@ const videoContentTypes = [
 	'video/MP2T', // Transport Stream (HLS segments)
 	'application/mp4',
 	'video/x-m4v',
-	'application/octet-stream', // Generic binary stream
 	...m3u8ContentTypes, // Include HLS playlist MIME types
 ];
 
