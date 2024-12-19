@@ -21,6 +21,8 @@ export default {
 			return proxy(request);
 		} else if (url.pathname === '/cors') {
 			return handleCorsRequest(request);
+		} else if (url.pathname === '/image') {
+			return handleCorsRequest(request);
 		} else if (url.pathname === '/') {
 			return new Response(
 				JSON.stringify({

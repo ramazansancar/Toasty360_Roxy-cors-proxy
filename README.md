@@ -1,10 +1,29 @@
-# HLS Stream Proxy
+## Cloudflare Proxy
 
-This application serves as a proxy for HLS streams, enabling secure access to media content.
+This application serves as a proxy for HLS streams, Images and enabling secure access to media content.
+
+### Deploy Using Cloudflare deploy button
+
+- Enter valid Cloudflare API key and Account ID.
+- Enable github workflows
+- Run **`deploy`** workflow in your forked repo actions `https://github.com/[User-Name]/[Repo-Name]/actions/workflows/deploy.yml`
+  <br>
 
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Toasty360/Roxy)
 
-## Proxy Endpoint
+### Deploy Manually
+
+- Setup wrangler on your system.
+- Download the source code.
+- Run `npm install`
+- Run `npm run dev` or `wrangler dev` in your terminal to start a development server
+- Open a browser tab at http://localhost:8787/ to see your worker in action
+- Run `wrangler deploy` to publish your worker
+
+### Proxy Endpoint
+
+- `/proxy` - for HLS
+- `/cors` - for Images/Web pages
 
 Use the following format to access the proxy:
 
@@ -17,15 +36,15 @@ Use the following format to access the proxy:
 
 ---
 
-## Encoding Instructions
+### Encoding Instructions
 
-### Encode M3U8 URL:
+#### Encode M3U8 URL:
 
 ```javascript
 btoa('http://example.com/stream.m3u8');
 ```
 
-### Encode Headers (if needed):
+#### Encode Headers (if needed):
 
 ```javascript
 btoa(JSON.stringify({ Referrer: 'https://anitaku.bz' }));
@@ -33,7 +52,7 @@ btoa(JSON.stringify({ Referrer: 'https://anitaku.bz' }));
 
 ---
 
-## Example Request
+### Example Request
 
 ```
 /proxy?url=aHR0cDovL2V4YW1wbGUuY29tL3N0cmVhbS5tM3U4&headers=eyJBdXRob3JpemF0aW9uIjoiQmVhcmVyIHRva2VuIn0=
