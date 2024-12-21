@@ -128,7 +128,7 @@ async function proxy(request) {
 
 		const contentType = response.headers.get('content-type') || 'application/octet-stream';
 		const isM3U8 = videoContentTypes.some((type) => contentType.includes(type));
-		const responseContent = isM3U8 ? await response.text() : null;
+		let responseContent = isM3U8 ? await response.text() : null;
 		const cacheControl = isM3U8 ? getCacheSettings(mediaUrl, responseContent) : CACHE_CONTROL_SETTINGS.SEGMENT;
 
 		if (!isM3U8) {
@@ -146,7 +146,16 @@ async function proxy(request) {
 			await cache.put(cacheKey, newResponse.clone());
 			return newResponse;
 		}
-
+		responseContent = responseContent.replace(/URI=['"](.*?)['"]/, (_, url) => {
+			const fullUrl = url.startsWith('http')
+				? url
+				: url.startsWith('/')
+				? `${baseUrl.protocol}//${baseUrl.host}${url}`
+				: `${basePath}${url}`;
+			return `URI="${new URL(request.url).origin}/proxy?url=${encodeURIComponent(btoa(fullUrl))}&headers=${encodeURIComponent(
+				headersBase64
+			)}"`;
+		});
 		const modifiedBody = responseContent.replace(/^(?!#)([^\s]+)$/gm, (match) => {
 			const fullUrl = match.startsWith('http')
 				? match
