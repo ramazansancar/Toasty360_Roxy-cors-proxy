@@ -12,6 +12,8 @@
 
 import handleCorsRequest from './cors.js';
 import proxy from './proxy.js';
+import { thumbnailHandler } from './thumbnails.js';
+import { handleRequest } from './utils/handler.js';
 
 export default {
 	async fetch(request) {
@@ -20,15 +22,26 @@ export default {
 		if (url.pathname === '/proxy') {
 			return proxy(request);
 		} else if (url.pathname === '/cors') {
-			return handleCorsRequest(request);
+			const [url, headers] = handleRequest(request);
+			return handleCorsRequest(url, headers);
 		} else if (url.pathname === '/image') {
-			return handleCorsRequest(request);
+			const [url, headers, origin] = handleRequest(request);
+			return handleCorsRequest(url, headers, origin);
+		} else if (url.pathname === '/thumbnail') {
+			const [url, headers, origin] = handleRequest(request);
+			return thumbnailHandler(url, headers, origin);
 		} else if (url.pathname === '/') {
 			return new Response(
 				JSON.stringify({
 					message: 'Welcome to Roxy',
-					Endpoints: ['/proxy', '/cors'],
+					Endpoints: [
+						{ '/proxy': 'For HLS' },
+						{ '/cors': 'For CORS' },
+						{ '/image': 'For Manga Images' },
+						{ '/thumbnail': 'For Thumbnails' },
+					],
 					params: '?url=<Base64-encoded-m3u8-url>&headers=<Base64-encoded-headers>',
+					tip: 'Base64Encoding is optional for /cors, /thumbnail, /image. Encode the url if it gives error. For /proxy, encoding is required.',
 				}),
 				{
 					status: 200,

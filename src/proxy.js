@@ -1,3 +1,5 @@
+import { decodeHeaders } from './utils/handler';
+
 const m3u8ContentTypes = [
 	'application/vnd.apple.mpegurl', // Standard HLS playlist
 	'application/x-mpegurl', // Common alias
@@ -27,22 +29,6 @@ const CACHE_CONTROL_SETTINGS = {
 	KEY: 'public, max-age=3600, s-maxage=3600',
 	ERROR: 'no-store',
 };
-
-function decodeHeaders(base64Headers) {
-	const headers = new Headers();
-	if (!base64Headers) return headers;
-	try {
-		const decodedString = atob(base64Headers);
-		const headersObj = JSON.parse(decodedString);
-
-		Object.entries(headersObj).forEach(([key, value]) => {
-			headers.append(key, value);
-		});
-		return headers;
-	} catch (error) {
-		return null;
-	}
-}
 
 function getCacheSettings(url, content) {
 	if (url.includes('.ts') || url.includes('.m4s')) {

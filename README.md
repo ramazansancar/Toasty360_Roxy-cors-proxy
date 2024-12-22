@@ -24,6 +24,8 @@ This application serves as a proxy for HLS streams, Images and enabling secure a
 
 - `/proxy` - for HLS
 - `/cors` - for Images/Web pages
+- `/image` - for Images/Web pages
+- `/thumbnail` - for thumbnail images
 
 Use the following format to access the proxy:
 
