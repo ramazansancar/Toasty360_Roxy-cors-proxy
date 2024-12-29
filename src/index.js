@@ -22,7 +22,7 @@ export default {
 		if (url.pathname === '/proxy') {
 			return proxy(request);
 		} else if (url.pathname === '/cors') {
-			const [url, headers] = handleRequest(request);
+			const [url, headers, origin] = handleRequest(request);
 			return handleCorsRequest(url, headers);
 		} else if (url.pathname === '/image') {
 			const [url, headers, origin] = handleRequest(request);

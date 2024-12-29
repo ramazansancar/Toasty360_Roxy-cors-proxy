@@ -1,19 +1,28 @@
 export const decodeHeaders = (base64Headers) => {
-	const headers = new Headers();
-	if (!base64Headers) return headers;
+	const headers = {}; // Use a plain object instead of `Headers`
+	if (!base64Headers) {
+		return headers;
+	}
+
 	try {
 		const decodedString = atob(base64Headers);
-		const headersObj = JSON.parse(decodedString);
+
+		let headersObj;
+		try {
+			headersObj = JSON.parse(decodedString);
+		} catch (error) {
+			console.error('Error parsing JSON:', error, 'Decoded string:', decodedString);
+			return headers;
+		}
 
 		Object.entries(headersObj).forEach(([key, value]) => {
-			headers.append(key, value);
+			headers[key] = value;
 		});
-		headers.append(
-			'User-Agent',
-			'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/237.84.2.178 Safari/537.36'
-		);
+		headers['User-Agent'] =
+			'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/237.84.2.178 Safari/537.36';
 		return headers;
 	} catch (error) {
+		console.error('Error decoding base64:', error);
 		return headers;
 	}
 };
@@ -36,5 +45,6 @@ export const handleRequest = (request) => {
 	}
 
 	const headers = decodeHeaders(headersBase64);
+
 	return [targetUrl, headers, url.origin];
 };
