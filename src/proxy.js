@@ -95,7 +95,7 @@ async function proxy(request) {
 		const basePath = `${baseUrl.protocol}//${baseUrl.host}${baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf('/') + 1)}`;
 		response = await fetch(mediaUrl, {
 			headers: {
-				...Object.fromEntries(decodedHeaders.entries()),
+				...decodedHeaders,
 				'Accept-Encoding': 'gzip, deflate, br',
 				Connection: 'keep-alive',
 			},
