@@ -1,5 +1,5 @@
 export const decodeHeaders = (base64Headers) => {
-	const headers = {}; // Use a plain object instead of `Headers`
+	const headers = {};
 	if (!base64Headers) {
 		return headers;
 	}
@@ -37,12 +37,10 @@ export const handleRequest = (request) => {
 			status: 400,
 		});
 	}
-	let targetUrl;
+	let targetUrl = decodeURIComponent(encodedUrl);
 	try {
 		targetUrl = atob(encodedUrl);
-	} catch (error) {
-		targetUrl = encodedUrl;
-	}
+	} catch (error) {}
 
 	const headers = decodeHeaders(headersBase64);
 

@@ -1,4 +1,4 @@
-import { decodeHeaders } from './utils/handler';
+import { handleRequest } from '../utils/handler';
 
 const m3u8ContentTypes = [
 	'application/vnd.apple.mpegurl',
@@ -11,17 +11,30 @@ const m3u8ContentTypes = [
 	'application/x-apple-hls',
 ];
 
-const videoContentTypes = [
-	'video/mp4',
-	'video/webm',
-	'video/ogg',
-	'video/quicktime',
-	'video/MP2T',
-	'application/mp4',
-	'video/x-m4v',
-	...m3u8ContentTypes,
-];
+function processM3U8Content(content, mediaUrl, origin) {
+	return content
+		.split('\n')
+		.map((line) => {
+			// Process URI attributes in tags
+			const uriMatch = line.match(/(URI=)(["'])(?<uri>.*?)\2/);
+			if (uriMatch) {
+				const [fullMatch, prefix, quote] = uriMatch;
+				const resolvedUrl = new URL(uriMatch.groups.uri, mediaUrl).toString();
+				const proxyUrl = `${origin}/proxy?url=${encodeURIComponent(resolvedUrl)}`;
+				return line.replace(fullMatch, `${prefix}${quote}${proxyUrl}${quote}`);
+			}
 
+			// Process segment URLs
+			if (!line.startsWith('#') && line.trim()) {
+				const resolvedUrl = new URL(line.trim(), mediaUrl).toString();
+				const proxyUrl = `${origin}/proxy?url=${encodeURIComponent(resolvedUrl)}`;
+				return line.replace(line.trim(), proxyUrl);
+			}
+
+			return line;
+		})
+		.join('\n');
+}
 async function proxy(request) {
 	if (request.method === 'OPTIONS') {
 		return new Response(null, {
@@ -36,36 +49,8 @@ async function proxy(request) {
 	}
 
 	try {
-		const url = new URL(request.url);
-		const urlParams = url.searchParams;
-		const encodedUrl = urlParams.get('url');
-		const headersBase64 = urlParams.get('headers');
+		let [mediaUrl, decodedHeaders, origin] = handleRequest(request);
 
-		if (!encodedUrl) {
-			return new Response('"url" query parameters are required', {
-				status: 400,
-				headers: {
-					'Access-Control-Allow-Origin': '*',
-				},
-			});
-		}
-
-		const mediaUrl = atob(decodeURIComponent(encodedUrl));
-		const decodedHeaders = decodeHeaders(headersBase64);
-
-		if (!decodedHeaders) {
-			return new Response('Invalid headers format. Must be valid base64-encoded JSON.', {
-				status: 400,
-				headers: {
-					'Access-Control-Allow-Origin': '*',
-				},
-			});
-		}
-
-		const baseUrl = new URL(mediaUrl);
-		const basePath = `${baseUrl.protocol}//${baseUrl.host}${baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf('/') + 1)}`;
-
-		// Pass through any Range header from the original request
 		const rangeHeader = request.headers.get('Range');
 		const fetchHeaders = {
 			...decodedHeaders,
@@ -85,7 +70,7 @@ async function proxy(request) {
 			throw new Error(`HTTP error! status: ${response.status}`);
 		}
 
-		const contentType = response.headers.get('content-type') || 'application/octet-stream';
+		const contentType = response.headers.get('content-type');
 		const isM3U8 = m3u8ContentTypes.some((type) => contentType.includes(type));
 
 		if (!isM3U8) {
@@ -102,27 +87,8 @@ async function proxy(request) {
 		}
 
 		let responseContent = await response.text();
-		responseContent = responseContent.replace(/URI=['"](.*?)['"]/, (_, url) => {
-			const fullUrl = url.startsWith('http')
-				? url
-				: url.startsWith('/')
-				? `${baseUrl.protocol}//${baseUrl.host}${url}`
-				: `${basePath}${url}`;
-			return `URI="${new URL(request.url).origin}/proxy?url=${encodeURIComponent(btoa(fullUrl))}&headers=${encodeURIComponent(
-				headersBase64
-			)}"`;
-		});
-
-		const modifiedBody = responseContent.replace(/^(?!#)([^\s]+)$/gm, (match) => {
-			const fullUrl = match.startsWith('http')
-				? match
-				: match.startsWith('/')
-				? `${baseUrl.protocol}//${baseUrl.host}${match}`
-				: `${basePath}${match}`;
-			return `${new URL(request.url).origin}/proxy?url=${encodeURIComponent(btoa(fullUrl))}&headers=${encodeURIComponent(headersBase64)}`;
-		});
-
-		return new Response(modifiedBody, {
+		responseContent = processM3U8Content(responseContent, mediaUrl, origin);
+		return new Response(responseContent, {
 			headers: {
 				'Content-Type': 'application/vnd.apple.mpegurl',
 				'Access-Control-Allow-Origin': '*',
