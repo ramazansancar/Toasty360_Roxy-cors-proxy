@@ -8,7 +8,6 @@ export const decodeHeaders = (base64OrUrlEncodedHeaders) => {
 	let decodedString = base64OrUrlEncodedHeaders;
 
 	const isBase64 = /^[A-Za-z0-9+/=]+$/.test(base64OrUrlEncodedHeaders) && base64OrUrlEncodedHeaders.length % 4 === 0;
-
 	try {
 		if (isBase64) {
 			decodedString = atob(base64OrUrlEncodedHeaders);

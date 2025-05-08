@@ -9,24 +9,38 @@ function processM3U8Content(content, mediaUrl, origin, headers) {
 			const uriMatch = line.match(/(URI=)(["'])(?<uri>.*?)\2/);
 			if (uriMatch) {
 				const [fullMatch, prefix, quote] = uriMatch;
-				console.log(fullMatch, prefix, quote);
+				try {
+					const resolvedUrl = new URL(uriMatch.groups.uri, mediaUrl).toString();
+					const proxyUrl = `${origin}/proxy?url=${encodeURIComponent(resolvedUrl)}${_headers}`;
+					return line.replace(fullMatch, `${prefix}${quote}${proxyUrl}${quote}`);
+				} catch (error) {
+					console.error('Error processing URI:', uriMatch.groups.uri, error);
+					return line;
+				}
+			}
 
-				const resolvedUrl = new URL(uriMatch.groups.uri, mediaUrl).toString();
-				const proxyUrl = `${origin}/proxy?url=${encodeURIComponent(resolvedUrl)}${_headers}`;
-				return line.replace(fullMatch, `${prefix}${quote}${proxyUrl}${quote}`);
+			if (line.startsWith('#EXT-X-STREAM-INF')) {
+				return line;
 			}
 
 			if (!line.startsWith('#') && line.trim()) {
-				const resolvedUrl = new URL(line.trim(), mediaUrl).toString();
-				const proxyUrl = `${origin}/proxy?url=${encodeURIComponent(resolvedUrl)}${_headers}`;
-				return line.replace(line.trim(), proxyUrl);
+				try {
+					const resolvedUrl = new URL(line.trim(), mediaUrl).toString();
+					const proxyUrl = `${origin}/proxy?url=${encodeURIComponent(resolvedUrl)}${_headers}`;
+					return proxyUrl;
+				} catch (error) {
+					console.error('Error processing URL:', line.trim(), error);
+					return line;
+				}
 			}
 
 			return line;
 		})
 		.join('\n');
 }
+
 async function proxy(request) {
+	// console.log(`Processing ${request.method} request for: ${request.url}`);
 	if (request.method === 'OPTIONS') {
 		return new Response(null, {
 			status: 204,
@@ -53,6 +67,7 @@ async function proxy(request) {
 		if (rangeHeader) {
 			fetchHeaders['Range'] = rangeHeader;
 		}
+
 		const response = await fetch(mediaUrl, {
 			headers: fetchHeaders,
 		});
@@ -60,27 +75,68 @@ async function proxy(request) {
 		if (!response.ok) {
 			throw new Error(`HTTP error! status: ${response.status}`);
 		}
+
 		const cleanHeaders = Object.fromEntries(
 			Array.from(response.headers.entries()).filter(([key], i, arr) => arr.findIndex(([k]) => k.toLowerCase() === key.toLowerCase()) === i)
 		);
+		delete cleanHeaders['Access-Control-Allow-Origin'];
+		delete cleanHeaders['access-control-allow-origin'];
+		const responseHeaders = {
+			...cleanHeaders,
+			'Access-Control-Allow-Origin': '*',
+			'Access-Control-Expose-Headers': Object.keys(cleanHeaders).join(', '),
+		};
+
+		const contentType = response.headers.get('Content-Type') || '';
+
+		const urlIndication = mediaUrl.toLowerCase().includes('.m3u8') || mediaUrl.toLowerCase().includes('/playlist');
 
 		let responseContent = await response.text();
-		if (!responseContent.trimStart().startsWith('#EXTM3U')) {
+		const contentLooksLikeM3U8 = responseContent.trimStart().startsWith('#EXTM3U');
+
+		const isM3U8 =
+			contentLooksLikeM3U8 ||
+			contentType.includes('application/vnd.apple.mpegurl') ||
+			contentType.includes('application/x-mpegurl') ||
+			contentType.includes('audio/mpegurl') ||
+			contentType.includes('audio/x-mpegurl');
+
+		if (isM3U8) {
+			responseContent = processM3U8Content(responseContent, mediaUrl, origin, decodedHeaders);
+
+			responseHeaders['Content-Type'] = 'application/vnd.apple.mpegurl';
 			return new Response(responseContent, {
 				status: response.status,
-				headers: {
-					...cleanHeaders,
-					'Access-Control-Allow-Origin': '*',
-				},
+				headers: responseHeaders,
 			});
 		}
-		responseContent = processM3U8Content(responseContent, mediaUrl, origin, decodedHeaders);
+
+		if (!contentLooksLikeM3U8 && responseContent.length > 0) {
+			const hasManyNonPrintable =
+				responseContent.split('').filter((char) => char.charCodeAt(0) < 32 && char !== '\n' && char !== '\r' && char !== '\t').length >
+				responseContent.length * 0.1;
+
+			if (
+				hasManyNonPrintable ||
+				contentType.includes('video/') ||
+				contentType.includes('audio/') ||
+				contentType.includes('image/') ||
+				contentType.includes('application/octet-stream')
+			) {
+				const binaryResponse = await fetch(mediaUrl, {
+					headers: fetchHeaders,
+				});
+				const arrayBuffer = await binaryResponse.arrayBuffer();
+				return new Response(arrayBuffer, {
+					status: binaryResponse.status,
+					headers: responseHeaders,
+				});
+			}
+		}
 
 		return new Response(responseContent, {
-			headers: {
-				...cleanHeaders,
-				'Access-Control-Allow-Origin': '*',
-			},
+			status: response.status,
+			headers: responseHeaders,
 		});
 	} catch (error) {
 		console.error('Error in proxy:', error);
@@ -88,6 +144,7 @@ async function proxy(request) {
 			status: 500,
 			headers: {
 				'Access-Control-Allow-Origin': '*',
+				'Content-Type': 'text/plain',
 			},
 		});
 	}
