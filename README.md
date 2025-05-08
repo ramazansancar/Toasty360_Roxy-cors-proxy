@@ -7,9 +7,10 @@ This application serves as a proxy for HLS streams, Images and enabling secure a
 - Enter valid Cloudflare API key and Account ID.
 - Enable github workflows
 - Run **`deploy`** workflow in your forked repo actions `https://github.com/[User-Name]/[Repo-Name]/actions/workflows/deploy.yml` .
-  
+
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Toasty360/Roxy)
->[!TIP]
+
+> [!TIP]
 > Dont' forget to run the workflow
 
 ### Deploy Manually
@@ -44,19 +45,23 @@ Use the following format to access the proxy:
 #### Encode M3U8 URL:
 
 ```javascript
-btoa('http://example.com/stream.m3u8');
+btoa('https://example.com/stream.m3u8');
+```
+
+or you can do this.
+
+```javascript
+encodeURIComponent('https://example.com/stream.m3u8');
 ```
 
 #### Encode Headers (if needed):
 
 ```javascript
-btoa(JSON.stringify({ Referrer: 'https://anitaku.bz' }));
+btoa(JSON.stringify({ Referer: 'https://kiwik.si' }));
 ```
 
----
+or you can do this.
 
-### Example Request
-
-```
-/proxy?url=aHR0cDovL2V4YW1wbGUuY29tL3N0cmVhbS5tM3U4&headers=eyJBdXRob3JpemF0aW9uIjoiQmVhcmVyIHRva2VuIn0=
+```javascript
+encodeURIComponent(JSON.stringify({ Referer: 'https://kiwik.si' }));
 ```
