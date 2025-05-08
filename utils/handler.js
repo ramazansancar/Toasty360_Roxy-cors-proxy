@@ -1,11 +1,20 @@
-export const decodeHeaders = (base64Headers) => {
+export const decodeHeaders = (base64OrUrlEncodedHeaders) => {
 	const headers = {};
-	if (!base64Headers) {
+
+	if (!base64OrUrlEncodedHeaders) {
 		return headers;
 	}
 
+	let decodedString = base64OrUrlEncodedHeaders;
+
+	const isBase64 = /^[A-Za-z0-9+/=]+$/.test(base64OrUrlEncodedHeaders) && base64OrUrlEncodedHeaders.length % 4 === 0;
+
 	try {
-		const decodedString = atob(base64Headers);
+		if (isBase64) {
+			decodedString = atob(base64OrUrlEncodedHeaders);
+		} else {
+			decodedString = decodeURIComponent(base64OrUrlEncodedHeaders);
+		}
 
 		let headersObj;
 		try {
@@ -18,11 +27,9 @@ export const decodeHeaders = (base64Headers) => {
 		Object.entries(headersObj).forEach(([key, value]) => {
 			headers[key] = value;
 		});
-		headers['User-Agent'] =
-			'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/237.84.2.178 Safari/537.36';
 		return headers;
 	} catch (error) {
-		console.error('Error decoding base64:', error);
+		console.error('Error decoding headers:', error);
 		return headers;
 	}
 };
@@ -32,6 +39,8 @@ export const handleRequest = (request) => {
 	const urlParams = url.searchParams;
 	const encodedUrl = urlParams.get('url');
 	const headersBase64 = urlParams.get('headers');
+
+	//bad code
 	if (!encodedUrl) {
 		return new Response('Url is required!', {
 			status: 400,

@@ -1,33 +1,24 @@
 import { handleRequest } from '../utils/handler';
 
-const m3u8ContentTypes = [
-	'application/vnd.apple.mpegurl',
-	'application/x-mpegurl',
-	'audio/x-mpegurl',
-	'audio/mpegurl',
-	'video/x-mpegurl',
-	'application/mpegurl',
-	'application/x-hls',
-	'application/x-apple-hls',
-];
-
-function processM3U8Content(content, mediaUrl, origin) {
+function processM3U8Content(content, mediaUrl, origin, headers) {
+	const hasHeaders = headers && Object.keys(headers).length > 0;
+	const _headers = hasHeaders ? `&headers=${btoa(JSON.stringify(headers))}` : '';
 	return content
 		.split('\n')
 		.map((line) => {
-			// Process URI attributes in tags
 			const uriMatch = line.match(/(URI=)(["'])(?<uri>.*?)\2/);
 			if (uriMatch) {
 				const [fullMatch, prefix, quote] = uriMatch;
+				console.log(fullMatch, prefix, quote);
+
 				const resolvedUrl = new URL(uriMatch.groups.uri, mediaUrl).toString();
-				const proxyUrl = `${origin}/proxy?url=${encodeURIComponent(resolvedUrl)}`;
+				const proxyUrl = `${origin}/proxy?url=${encodeURIComponent(resolvedUrl)}${_headers}`;
 				return line.replace(fullMatch, `${prefix}${quote}${proxyUrl}${quote}`);
 			}
 
-			// Process segment URLs
 			if (!line.startsWith('#') && line.trim()) {
 				const resolvedUrl = new URL(line.trim(), mediaUrl).toString();
-				const proxyUrl = `${origin}/proxy?url=${encodeURIComponent(resolvedUrl)}`;
+				const proxyUrl = `${origin}/proxy?url=${encodeURIComponent(resolvedUrl)}${_headers}`;
 				return line.replace(line.trim(), proxyUrl);
 			}
 
@@ -53,15 +44,15 @@ async function proxy(request) {
 
 		const rangeHeader = request.headers.get('Range');
 		const fetchHeaders = {
-			...decodedHeaders,
-			'Accept-Encoding': 'gzip, deflate, br',
+			'User-Agent':
+				'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/237.84.2.178 Safari/537.36',
 			Connection: 'keep-alive',
+			...decodedHeaders,
 		};
 
 		if (rangeHeader) {
 			fetchHeaders['Range'] = rangeHeader;
 		}
-
 		const response = await fetch(mediaUrl, {
 			headers: fetchHeaders,
 		});
@@ -69,30 +60,26 @@ async function proxy(request) {
 		if (!response.ok) {
 			throw new Error(`HTTP error! status: ${response.status}`);
 		}
+		const cleanHeaders = Object.fromEntries(
+			Array.from(response.headers.entries()).filter(([key], i, arr) => arr.findIndex(([k]) => k.toLowerCase() === key.toLowerCase()) === i)
+		);
 
-		const contentType = response.headers.get('content-type');
-		const isM3U8 = m3u8ContentTypes.some((type) => contentType.includes(type));
-
-		if (!isM3U8) {
-			return new Response(response.body, {
+		let responseContent = await response.text();
+		if (!responseContent.trimStart().startsWith('#EXTM3U')) {
+			return new Response(responseContent, {
 				status: response.status,
 				headers: {
-					'Content-Type': contentType,
+					...cleanHeaders,
 					'Access-Control-Allow-Origin': '*',
-					'Accept-Ranges': 'bytes',
-					'Content-Length': response.headers.get('content-length'),
-					'Content-Range': response.headers.get('content-range'),
 				},
 			});
 		}
+		responseContent = processM3U8Content(responseContent, mediaUrl, origin, decodedHeaders);
 
-		let responseContent = await response.text();
-		responseContent = processM3U8Content(responseContent, mediaUrl, origin);
 		return new Response(responseContent, {
 			headers: {
-				'Content-Type': 'application/vnd.apple.mpegurl',
+				...cleanHeaders,
 				'Access-Control-Allow-Origin': '*',
-				'Accept-Ranges': 'bytes',
 			},
 		});
 	} catch (error) {
