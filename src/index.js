@@ -1,12 +1,10 @@
 import handleCorsRequest from './cors.js';
 import proxy from './proxy.js';
-import reverseProxy from './reverseProxy.js';
 import { thumbnailHandler } from './thumbnails.js';
 import { handleRequest } from '../utils/handler.js';
 
 const handlePath = {
 	'/proxy': proxy,
-	'/reverse-proxy': reverseProxy,
 	'/cors': handleCorsRequest,
 	'/image': handleCorsRequest,
 	'/thumbnail': thumbnailHandler,
